@@ -1,9 +1,9 @@
-import 'package:english_words/english_words.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:math';
 
 void main() {
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -14,209 +14,98 @@ class MyApp extends StatelessWidget {
     return ChangeNotifierProvider(
       create: (context) => MyAppState(),
       child: MaterialApp(
-        title: 'PassForge App',
+        title: 'PassForge',
         theme: ThemeData(
           useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(seedColor: const Color.fromARGB(255, 255, 149, 0)),
+          colorScheme: ColorScheme.fromSeed(seedColor: const Color.fromARGB(255, 0, 0, 0)),
         ),
-        home: MyHomePage(),
+        home: const MyHomePage(),
       ),
     );
   }
 }
-
-// ...
 
 class MyAppState extends ChangeNotifier {
-  var current = WordPair.random();
+  String _password = '';
+  int _length = 12; // Default password length
 
-  // ↓ Add this.
-  void getNext() {
-    current = WordPair.random();
-    notifyListeners();
+  String get password => _password;
+  int get length => _length;
+
+  void setLength(int newLength) {
+    _length = newLength;
+    generateRandomPassword();
   }
-  var favorites = <WordPair>[];
 
-  void toggleFavorite() {
-    if (favorites.contains(current)) {
-      favorites.remove(current);
-    } else {
-      favorites.add(current);
-    }
-    notifyListeners();
-  }
-}
-
-class MyHomePage extends StatefulWidget {
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-  var selectedIndex = 0;
-
-  @override
-
-  Widget build(BuildContext context) {
-    Widget page;
-    switch (selectedIndex) {
-      case 0:
-        page = GeneratorPage();
-        break;
-      case 1:
-        page = FavoritesPage();
-        break;
-      default:
-        throw UnimplementedError('no widget for $selectedIndex');
-    }
-    return LayoutBuilder(
-      builder: (context,constraints) {
-        return Scaffold(
-          body: Row(
-            children: [
-              SafeArea(
-                child: NavigationRail(
-                  extended: constraints.maxWidth >= 600,
-                  destinations: [
-                    NavigationRailDestination(
-                      icon: Icon(Icons.home),
-                      label: Text('Home'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.favorite),
-                      label: Text('Favorites'),
-                    ),
-                  ],
-                  selectedIndex: selectedIndex,
-                  onDestinationSelected: (value) {
-                    setState(() {
-                      selectedIndex = value;
-                    });
-                  },
-                ),
-              ),
-              Expanded(
-                child: Container(
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                  child: page,
-                ),
-              ),
-            ],
-          ),
-        );
-      }
+  void generateRandomPassword() {
+    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#%^&*()";
+    Random random = Random();
+    _password = String.fromCharCodes(
+      Iterable.generate(_length, (_) => chars.codeUnitAt(random.nextInt(chars.length)))
     );
+    notifyListeners();
   }
 }
 
+class MyHomePage extends StatelessWidget {
+  const MyHomePage({super.key});
 
-class GeneratorPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     var appState = context.watch<MyAppState>();
-    var pair = appState.current;
-
-    IconData icon;
-    if (appState.favorites.contains(pair)) {
-      icon = Icons.favorite;
-    } else {
-      icon = Icons.favorite_border;
-    }
-
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          BigCard(pair: pair),
-          SizedBox(height: 10),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
+    
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('PassForge'),
+        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              const Text(
+                'Select the length of your password:',
+                style: TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+              DropdownButton<int>(
+                value: appState.length,
+                items: [8, 12, 16, 20, 24].map<DropdownMenuItem<int>>((int value) {
+                  return DropdownMenuItem<int>(
+                    value: value,
+                    child: Text('$value characters'),
+                  );
+                }).toList(),
+                onChanged: (int? value) {
+                  if (value != null) {
+                    appState.setLength(value);
+                  }
+                },
+              ),
+              const SizedBox(height: 32),
+              const Text(
+                'Your password is:',
+                style: TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+              SelectableText(
+                appState.password,
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+              const SizedBox(height: 16),
               ElevatedButton.icon(
                 onPressed: () {
-                  appState.toggleFavorite();
+                  appState.generateRandomPassword();
                 },
-                icon: Icon(icon),
-                label: Text('Like'),
-              ),
-              SizedBox(width: 10),
-              ElevatedButton(
-                onPressed: () {
-                  appState.getNext();
-                },
-                child: Text('Next'),
+                icon: const Icon(Icons.refresh),
+                label: const Text('Generate New Password'),
               ),
             ],
           ),
-        ],
-      ),
-    );
-  }
-}
-
-// ...
-class BigCard extends StatelessWidget {
-  const BigCard({
-    super.key,
-    required this.pair,
-  });
-
-  final WordPair pair;
-
-  // ...
-
-  // ...
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    // ↓ Add this.
-    final style = theme.textTheme.displayMedium!.copyWith(
-      color: theme.colorScheme.onPrimary,
-    );
-
-    return Card(
-      color: theme.colorScheme.primary,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        // ↓ Change this line.
-        child: Text(
-          pair.asLowerCase,
-          style: style,
-          semanticsLabel: "${pair.first} ${pair.second}",
         ),
       ),
-    );
-  }
-}
-// ...
-// .
-// ...
-
-class FavoritesPage extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    var appState = context.watch<MyAppState>();
-
-    if (appState.favorites.isEmpty) {
-      return Center(
-        child: Text('No favorites yet.'),
-      );
-    }
-
-    return ListView(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(20),
-          child: Text('You have '
-              '${appState.favorites.length} favorites:'),
-        ),
-        for (var pair in appState.favorites)
-          ListTile(
-            leading: Icon(Icons.favorite),
-            title: Text(pair.asLowerCase),
-          ),
-      ],
     );
   }
 }
