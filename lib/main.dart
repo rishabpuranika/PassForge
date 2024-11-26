@@ -357,37 +357,30 @@ class CredentialStoragePage extends StatefulWidget {
 }
 
 class _CredentialStoragePageState extends State<CredentialStoragePage> {
+  // Set to track which credentials have their passwords revealed
+  final Set<String> _revealedPasswords = {};
+
   @override
   void initState() {
     super.initState();
-    print('CredentialStoragePage initState called');
-    
-    // Use a slight delay to ensure context is ready
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final appState = Provider.of<MyAppState>(context, listen: false);
-      print('Attempting to load credentials');
-      appState.loadStoredCredentials().then((_) {
-        print('Credentials loaded. Count: ${appState.storedCredentials.length}');
-      }).catchError((error) {
-        print('Error loading credentials: $error');
-      });
+      Provider.of<MyAppState>(context, listen: false).loadStoredCredentials();
     });
   }
-   void _addTestCredential() {
-    final appState = Provider.of<MyAppState>(context, listen: false);
-    appState.addCredential(
-      serviceName: 'TestService',
-      username: 'testuser',
-      password: 'testpassword'
-    );
+
+  void _togglePasswordVisibility(String serviceName) {
+    setState(() {
+      if (_revealedPasswords.contains(serviceName)) {
+        _revealedPasswords.remove(serviceName);
+      } else {
+        _revealedPasswords.add(serviceName);
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     var appState = context.watch<MyAppState>();
-    
-    print('Building CredentialStoragePage');
-    print('Stored credentials count: ${appState.storedCredentials.length}');
 
     if (appState.storedCredentials.isEmpty) {
       return const Center(
@@ -399,14 +392,70 @@ class _CredentialStoragePageState extends State<CredentialStoragePage> {
       itemCount: appState.storedCredentials.length,
       itemBuilder: (context, index) {
         final credential = appState.storedCredentials[index];
-        return ListTile(
-          title: Text(credential['serviceName'] ?? 'Unknown Service'),
-          subtitle: Text(credential['username'] ?? 'Unknown Username'),
-          trailing: IconButton(
-            icon: const Icon(Icons.delete),
-            onPressed: () {
-              appState.deleteCredential(credential['serviceName']!);
-            },
+        final serviceName = credential['serviceName'] ?? 'Unknown Service';
+        final username = credential['username'] ?? 'Unknown Username';
+        final password = credential['password'] ?? '';
+        final isPasswordRevealed = _revealedPasswords.contains(serviceName);
+
+        return Card(
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: ExpansionTile(
+            title: Text(serviceName),
+            subtitle: Text(username),
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        isPasswordRevealed ? password : '*' * password.length,
+                        style: const TextStyle(letterSpacing: 2),
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        isPasswordRevealed 
+                          ? Icons.visibility_off 
+                          : Icons.visibility,
+                      ),
+                      onPressed: () => _togglePasswordVisibility(serviceName),
+                    ),
+                  ],
+                ),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.red),
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('Delete Credential'),
+                          content: Text('Are you sure you want to delete credentials for $serviceName?'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: const Text('Cancel'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () {
+                                appState.deleteCredential(serviceName);
+                                Navigator.of(context).pop();
+                              },
+                              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                              child: const Text('Delete'),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ],
           ),
         );
       },
