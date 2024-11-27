@@ -1,9 +1,7 @@
-add save button for saving the password and then click the name of the application
 the passwords which have not been saved should be shown in history and option should be there to delete them or save them or delete them within 60min
-store the data where for viewing the password which should be starred **** out and should be reauthenticated to be viewed
+store the data and it should be reauthenticated to be viewed
 added whatever u think can be giving access to user in which one can be theme
 add fingerprint or password for app
-try to encrypt and store the data in the background
 explore the methods to store data in flutter to store the data in local device
 
 After the project completetion ---> search secure data storage spaces and give them the option

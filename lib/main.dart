@@ -137,8 +137,8 @@ class _MyHomePageState extends State<MyHomePage> {
                   leading: Column(
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.menu),
-                        onPressed: _toggleNavRail,
+                      icon: const Icon(Icons.menu),
+                      onPressed: _toggleNavRail,
                       ),
                       const SizedBox(height: 8),
                       // Ensure the logo is always visible
@@ -282,15 +282,25 @@ class PasswordGeneratorPage extends StatelessWidget {
           children: <Widget>[
             const Text(
               'Select the length of your password:',
-              style: TextStyle(fontSize: 16),
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                fontFamily: 'Roboto', //To change the font of the text
+              )
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 35),
             DropdownButton<int>(
               value: appState.length,
               items: [8, 12, 16, 20, 24].map<DropdownMenuItem<int>>((int value) {
                 return DropdownMenuItem<int>(
                   value: value,
-                  child: Text('$value characters'),
+                    child: Text(
+                    '$value characters',
+                    style: const TextStyle(
+                      fontSize: 18, // Change the size of the text
+                      fontWeight: FontWeight.w500, // Make the text bold
+                    ),
+                  ),
                 );
               }).toList(),
               onChanged: (int? value) {
@@ -302,7 +312,11 @@ class PasswordGeneratorPage extends StatelessWidget {
             const SizedBox(height: 32),
             const Text(
               'Your password is:',
-              style: TextStyle(fontSize: 16),
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                fontFamily: 'Comic Sans MS', //To change the font of the text
+              ),
             ),
             const SizedBox(height: 16),
             SelectableText(
@@ -339,34 +353,6 @@ class PasswordGeneratorPage extends StatelessWidget {
     );
   }
 }
-
-/*
-class display extends StatelessWidget{
-  @override
-  Widget build(BuildContext context) {
-    var appState = context.watch<MyAppState>();
-
-    if (appState.passwords.isEmpty) {
-      return Center(
-        child: Text('No passwords yet.'),
-      );
-    }
-    return ListView(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(20),
-          child: Text('You have '
-              '${appState.passwords.length} favorites:'),
-        ),
-        for (var pair in appState.favorites)
-          ListTile(
-            leading: Icon(Icons.favorite),
-            title: Text(pair.asLowerCase),
-          ),
-      ],
-    );
-  }
-}*/
 
 class CredentialStoragePage extends StatefulWidget {
   const CredentialStoragePage({super.key});
