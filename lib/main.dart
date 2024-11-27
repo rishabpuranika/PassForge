@@ -21,6 +21,7 @@ class MyApp extends StatelessWidget {
           colorScheme: ColorScheme.fromSeed(seedColor: const Color.fromARGB(255, 255, 98, 0)),
         ),
         home: const MyHomePage(),
+        debugShowCheckedModeBanner: false,
       ),
     );
   }
@@ -309,7 +310,10 @@ class PasswordGeneratorPage extends StatelessWidget {
                   },
                   icon: const Icon(Icons.save),
                   label: const Text('Save Password'),
-                ),
+                  style: ElevatedButton.styleFrom(
+                    alignment: Alignment.centerLeft, // or centerRight
+                  ),
+                )
               ],
             ),
           ],
