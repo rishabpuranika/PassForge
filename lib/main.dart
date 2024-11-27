@@ -1,8 +1,6 @@
-import 'package:english_words/english_words.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:math';
-import 'package:passforge/savedata.dart';
 import 'secure_credential_manager.dart';
 
 void main() {
