@@ -97,6 +97,13 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   var selectedIndex = 0;
+  bool _isNavRailVisible = true;
+
+  void _toggleNavRail() {
+    setState(() {
+      _isNavRailVisible = !_isNavRailVisible;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -115,50 +122,58 @@ class _MyHomePageState extends State<MyHomePage> {
         page = const Placeholder();
         break;
       default:
-        throw UnimplementedError('no widget for $selectedIndex');
+        throw UnimplementedError('No widget for $selectedIndex');
     }
-    
+
     return LayoutBuilder(
       builder: (context, constraints) {
         return Scaffold(
           body: Row(
             children: [
+              // NavigationRail section
               SafeArea(
                 child: NavigationRail(
-                  extended: constraints.maxWidth >= 600,
+                  extended: constraints.maxWidth >= 600 && _isNavRailVisible, // Extend when wide enough and visible
                   leading: Column(
                     children: [
-                      // Custom image with fixed size
-                      Image.asset(
-                        'assets/logo.png', // Replace with your image path
-                        width: 60,
-                        height: 60,
+                      IconButton(
+                        icon: const Icon(Icons.menu),
+                        onPressed: _toggleNavRail,
                       ),
                       const SizedBox(height: 8),
-                      const Text(
-                        'PassForge', 
-                        style: TextStyle(
-                          fontSize: 20, 
-                          fontWeight: FontWeight.bold
-                        ),
+                      // Ensure the logo is always visible
+                      Image.asset(
+                        'assets/logo.png', // Replace with your image path
+                        width: _isNavRailVisible ? 60 : 30, // Adjust size when minimized
+                        height: _isNavRailVisible ? 60 : 30, // Adjust size when minimized
                       ),
+                      if (_isNavRailVisible) ...[
+                        const SizedBox(height: 8),
+                        const Text(
+                          'PassForge',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                   destinations: const [
                     NavigationRailDestination(
-                      icon: Icon(Icons.key_rounded),
+                      icon: Icon(Icons.key_rounded), // Icon always visible
                       label: Text('Generator'),
                     ),
                     NavigationRailDestination(
-                      icon: Icon(Icons.account_balance_wallet_outlined),
+                      icon: Icon(Icons.account_balance_wallet_outlined), // Icon always visible
                       label: Text('Password Storage'),
                     ),
                     NavigationRailDestination(
-                      icon: Icon(Icons.manage_history),
+                      icon: Icon(Icons.manage_history), // Icon always visible
                       label: Text('History'),
                     ),
                     NavigationRailDestination(
-                      icon: Icon(Icons.settings),
+                      icon: Icon(Icons.settings), // Icon always visible
                       label: Text('Settings'),
                     ),
                   ],
@@ -170,6 +185,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   },
                 ),
               ),
+              // Main content area
               Expanded(
                 child: Container(
                   color: Theme.of(context).colorScheme.primaryContainer,
@@ -179,10 +195,11 @@ class _MyHomePageState extends State<MyHomePage> {
             ],
           ),
         );
-      }
+      },
     );
   }
 }
+
 
 class PasswordGeneratorPage extends StatelessWidget {
   const PasswordGeneratorPage({super.key});
