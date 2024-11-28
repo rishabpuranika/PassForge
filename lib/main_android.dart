@@ -33,6 +33,9 @@ class MyAppState extends ChangeNotifier {
   List<Map<String, String>> _storedCredentials = [];
   bool _isLoading = false;
 
+  List<Map<String, dynamic>> _unsavedPasswords = []; // Keeps track of unsaved passwords with timestamps
+  List<Map<String, dynamic>> get unsavedPasswords => _unsavedPasswords;
+
   String get password => _password;
   int get length => _length;
   List<Map<String, String>> get storedCredentials => _storedCredentials;
@@ -104,6 +107,36 @@ class MyAppState extends ChangeNotifier {
     _password = String.fromCharCodes(
       Iterable.generate(_length, (_) => chars.codeUnitAt(random.nextInt(chars.length)))
     );
+    notifyListeners();
+  }
+  void addUnsavedPassword(String password) {
+    final timestamp = DateTime.now();
+    _unsavedPasswords.add({'password': password, 'timestamp': timestamp});
+    notifyListeners();
+
+    // Remove expired passwords automatically after 60 minutes
+    Future.delayed(const Duration(minutes: 10), () {
+      _unsavedPasswords.removeWhere((item) =>
+          DateTime.now().difference(item['timestamp']).inMinutes >= 10);
+      notifyListeners();
+    });
+  }
+
+  void removeUnsavedPassword(String password) {
+    _unsavedPasswords.removeWhere((item) => item['password'] == password);
+    notifyListeners();
+  }
+
+  void saveUnsavedPassword(String password, String serviceName, String username) {
+    removeUnsavedPassword(password);
+    addCredential(
+      serviceName: serviceName,
+      username: username,
+      password: password,
+    );
+  }
+  void deleteUnsavedPassword(String password) {
+    _unsavedPasswords.removeWhere((item) => item['password'] == password);
     notifyListeners();
   }
 }
@@ -269,6 +302,11 @@ class PasswordGeneratorPage extends StatelessWidget {
       },
     );
   }
+  void _generatePassword(BuildContext context) {
+    var appState = Provider.of<MyAppState>(context, listen: false);
+    appState.generateRandomPassword();
+    appState.addUnsavedPassword(appState.password);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -332,9 +370,7 @@ class PasswordGeneratorPage extends StatelessWidget {
                 alignment: WrapAlignment.center,
                 children: [
                   ElevatedButton.icon(
-                    onPressed: () {
-                      appState.generateRandomPassword();
-                    },
+                    onPressed: () => _generatePassword(context),
                     icon: const Icon(Icons.refresh),
                     label: const Text('Generate'),
                   ),
@@ -411,14 +447,10 @@ class _CredentialStoragePageState extends State<CredentialStoragePage> {
       child: RefreshIndicator(
         onRefresh: () => appState.loadStoredCredentials(),
         child: ListView.builder(
-          physics: const AlwaysScrollableScrollPhysics(),
           itemCount: appState.storedCredentials.length,
           itemBuilder: (context, index) {
             final credential = appState.storedCredentials[index];
             final serviceName = credential['serviceName'] ?? 'Unknown Service';
-            final username = credential['username'] ?? 'Unknown Username';
-            final password = credential['password'] ?? '';
-            final isPasswordRevealed = _revealedPasswords.contains(serviceName);
 
             return Dismissible(
               key: Key(serviceName),
@@ -450,42 +482,17 @@ class _CredentialStoragePageState extends State<CredentialStoragePage> {
                 );
               },
               onDismissed: (direction) {
-                appState.deleteCredential(serviceName);
+                appState.deleteCredential(serviceName); // Call the delete method from MyAppState
               },
               child: Card(
-                margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: ExpansionTile(
+                child: ListTile(
                   title: Text(serviceName),
-                  subtitle: Text(username),
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              isPasswordRevealed ? password : '*' * password.length,
-                              style: const TextStyle(letterSpacing: 2),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          IconButton(
-                            icon: Icon(
-                              isPasswordRevealed 
-                                ? Icons.visibility_off 
-                                : Icons.visibility,
-                            ),
-                            onPressed: () => _togglePasswordVisibility(serviceName),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                  subtitle: Text(credential['username'] ?? ''),
                 ),
               ),
             );
           },
-        ),
+        )
       ),
     );
   }
@@ -497,9 +504,133 @@ class HistoryPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(child: Text('History Page (Coming Soon)'));
+    var appState = context.watch<MyAppState>();
+
+    if (appState.unsavedPasswords.isEmpty) {
+      return const Center(
+        child: Text('No unsaved passwords in history'),
+      );
+    }
+
+    return SafeArea(
+      child: ListView.builder(
+        itemCount: appState.unsavedPasswords.length,
+        itemBuilder: (context, index) {
+          final unsavedPassword = appState.unsavedPasswords[index];
+          final password = unsavedPassword['password'];
+          final timestamp = unsavedPassword['timestamp'] as DateTime;
+
+          return Dismissible(
+            key: Key(password),
+            direction: DismissDirection.endToStart,
+            background: Container(
+              color: Colors.red,
+              alignment: Alignment.centerRight,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: const Icon(Icons.delete, color: Colors.white),
+            ),
+            confirmDismiss: (direction) async {
+              return await showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Delete Password'),
+                  content: Text('Are you sure you want to delete this password?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: const Text('Cancel'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                      child: const Text('Delete'),
+                    ),
+                  ],
+                ),
+              );
+            },
+            onDismissed: (direction) {
+              appState.deleteUnsavedPassword(password); // Implement this in MyAppState
+            },
+            child: ListTile(
+              title: Text(password),
+              subtitle: Text('Generated: ${timestamp.toLocal()}'),
+              trailing: IconButton(
+                icon: const Icon(Icons.save),
+                onPressed: () {
+                  // Trigger save credential dialog
+                  PasswordGeneratorPage()._showSaveCredentialDialog(context, password);
+                },
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 }
+
+
+void _showSaveDialog(BuildContext context, String password) {
+  final serviceNameController = TextEditingController();
+  final usernameController = TextEditingController();
+
+  showDialog(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: const Text('Save Unsaved Password'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: serviceNameController,
+                decoration: const InputDecoration(
+                  labelText: 'Service Name',
+                ),
+              ),
+              TextField(
+                controller: usernameController,
+                decoration: const InputDecoration(
+                  labelText: 'Username',
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (serviceNameController.text.trim().isNotEmpty &&
+                  usernameController.text.trim().isNotEmpty) {
+                var appState = Provider.of<MyAppState>(context, listen: false);
+                appState.saveUnsavedPassword(
+                  password,
+                  serviceNameController.text.trim(),
+                  usernameController.text.trim(),
+                );
+
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Password saved for ${serviceNameController.text}'),
+                  ),
+                );
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      );
+    },
+  );
+}
+
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
