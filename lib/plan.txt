@@ -1,6 +1,4 @@
-the passwords which have not been saved should be shown in history and option should be there to delete them or save them or delete them within 60min
 store the data and it should be reauthenticated to be viewed
-added whatever u think can be giving access to user in which one can be theme
 add fingerprint or password for app
 explore the methods to store data in flutter to store the data in local device
 

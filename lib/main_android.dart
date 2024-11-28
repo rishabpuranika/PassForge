@@ -14,14 +14,31 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (context) => MyAppState(),
-      child: MaterialApp(
-        title: 'PassForge',
-        theme: ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(seedColor: const Color.fromARGB(255, 255, 98, 0)),
-        ),
-        home: const MyHomePage(),
-        debugShowCheckedModeBanner: false,
+      child: Consumer<MyAppState>(
+        builder: (context, appState, child) {
+          return MaterialApp(
+            title: 'PassForge',
+            theme: ThemeData(
+              useMaterial3: true,
+              brightness: Brightness.light,
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: const Color.fromARGB(255, 255, 98, 0),
+                brightness: Brightness.light,
+              ),
+            ),
+            darkTheme: ThemeData(
+              useMaterial3: true,
+              brightness: Brightness.dark,
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: const Color.fromARGB(255, 255, 98, 0),
+                brightness: Brightness.dark,
+              ),
+            ),
+            themeMode: appState.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+            home: const MyHomePage(),
+            debugShowCheckedModeBanner: false,
+          );
+        },
       ),
     );
   }
@@ -114,7 +131,7 @@ class MyAppState extends ChangeNotifier {
     _unsavedPasswords.add({'password': password, 'timestamp': timestamp});
     notifyListeners();
 
-    // Remove expired passwords automatically after 60 minutes
+    // Remove expired passwords automatically after 10 minutes
     Future.delayed(const Duration(minutes: 10), () {
       _unsavedPasswords.removeWhere((item) =>
           DateTime.now().difference(item['timestamp']).inMinutes >= 10);
@@ -137,6 +154,13 @@ class MyAppState extends ChangeNotifier {
   }
   void deleteUnsavedPassword(String password) {
     _unsavedPasswords.removeWhere((item) => item['password'] == password);
+    notifyListeners();
+  }
+   bool _isDarkMode = false;
+  bool get isDarkMode => _isDarkMode;
+
+  void toggleTheme() {
+    _isDarkMode = !_isDarkMode;
     notifyListeners();
   }
 }
@@ -637,6 +661,46 @@ class SettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(child: Text('Settings Page (Coming Soon)'));
+    var appState = context.watch<MyAppState>();
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Settings',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Card(
+              child: ListTile(
+                title: const Text('Dark Mode'),
+                subtitle: Text(appState.isDarkMode ? 'Enabled' : 'Disabled'),
+                trailing: Switch(
+                  value: appState.isDarkMode,
+                  onChanged: (bool value) {
+                    appState.toggleTheme();
+                  },
+                ),
+              ),
+            ),
+            const Spacer(),
+            const Text(
+              'PassForge v1.0',
+              style: TextStyle(
+                fontFamily: 'BungeeSpice',
+                color: Colors.grey,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
