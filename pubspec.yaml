@@ -39,3 +39,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/logo.png
+  fonts:
+    - family: BungeeSpice
+      fonts:
+        - asset: assets/fonts/BungeeSpice-Regular.ttf

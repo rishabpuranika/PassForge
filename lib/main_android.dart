@@ -122,8 +122,29 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Use BottomNavigationBar for mobile-friendly navigation
         return Scaffold(
+          appBar: selectedIndex != 3 // Hide AppBar in Settings page
+              ? AppBar(
+                  title: Row(
+                    children: [
+                      Image.asset(
+                        'assets/logo.png', // Replace with your logo asset path
+                        width: 40, 
+                        height: 40,
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'PassForge',
+                        style: TextStyle(
+                          fontFamily: 'BungeeSpice', // Replace 'CustomFont' with the name of your font
+                          fontSize: 20, // Adjust font size as needed
+                          fontWeight: FontWeight.bold, // Adjust weight as needed
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : null,
           body: _buildPage(selectedIndex),
           bottomNavigationBar: BottomNavigationBar(
             type: BottomNavigationBarType.fixed,
@@ -172,6 +193,7 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 }
+
 
 class PasswordGeneratorPage extends StatelessWidget {
   const PasswordGeneratorPage({super.key});
@@ -292,6 +314,7 @@ class PasswordGeneratorPage extends StatelessWidget {
               const Text(
                 'Your password is:',
                 style: TextStyle(
+                  fontFamily: 'BungeeSpice',
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                 ),
