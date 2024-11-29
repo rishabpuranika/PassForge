@@ -1,5 +1,0 @@
-store the data and it should be reauthenticated to be viewed
-add fingerprint or password for app
-explore the methods to store data in flutter to store the data in local device
-
-After the project completetion ---> search secure data storage spaces and give them the option
