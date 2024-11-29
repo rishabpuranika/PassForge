@@ -44,15 +44,9 @@ app.*.map.json
 
 
 #Files list
-android
 ios
 linux
 macos
-test
 web
-windows
-.metadata
-analysis_options.yaml
-pubspec.lock
 devtools_options.yaml
-README.md
+lib/plan.txt
