@@ -1,0 +1,26 @@
+[
+    {
+        "merged": "com.it_nomads.fluttersecurestorage.flutter_secure_storage-merged_res-26:/animator/fragment_fade_enter.xml",
+        "source": "com.it_nomads.fluttersecurestorage.flutter_secure_storage-fragment-1.7.1-15:/animator/fragment_fade_enter.xml"
+    },
+    {
+        "merged": "com.it_nomads.fluttersecurestorage.flutter_secure_storage-merged_res-26:/animator/fragment_open_exit.xml",
+        "source": "com.it_nomads.fluttersecurestorage.flutter_secure_storage-fragment-1.7.1-15:/animator/fragment_open_exit.xml"
+    },
+    {
+        "merged": "com.it_nomads.fluttersecurestorage.flutter_secure_storage-merged_res-26:/animator/fragment_close_enter.xml",
+        "source": "com.it_nomads.fluttersecurestorage.flutter_secure_storage-fragment-1.7.1-15:/animator/fragment_close_enter.xml"
+    },
+    {
+        "merged": "com.it_nomads.fluttersecurestorage.flutter_secure_storage-merged_res-26:/animator/fragment_open_enter.xml",
+        "source": "com.it_nomads.fluttersecurestorage.flutter_secure_storage-fragment-1.7.1-15:/animator/fragment_open_enter.xml"
+    },
+    {
+        "merged": "com.it_nomads.fluttersecurestorage.flutter_secure_storage-merged_res-26:/animator/fragment_fade_exit.xml",
+        "source": "com.it_nomads.fluttersecurestorage.flutter_secure_storage-fragment-1.7.1-15:/animator/fragment_fade_exit.xml"
+    },
+    {
+        "merged": "com.it_nomads.fluttersecurestorage.flutter_secure_storage-merged_res-26:/animator/fragment_close_exit.xml",
+        "source": "com.it_nomads.fluttersecurestorage.flutter_secure_storage-fragment-1.7.1-15:/animator/fragment_close_exit.xml"
+    }
+]
