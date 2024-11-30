@@ -50,3 +50,6 @@ macos
 web
 devtools_options.yaml
 lib/plan.txt
+.flutter-plugins
+.flutter-plugins-dependencies
+.vscode
