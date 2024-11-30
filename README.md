@@ -25,10 +25,10 @@ PassForge is a Flutter-based mobile application designed to help users generate,
 ## Screenshots <a name="screenshots"></a>
  
  ### In Light Theme
- [![Light Theme](assets/screenshots/light.jpg)]
+ ![Light Theme](assets/screenshots/light.jpg)
 
  ### In Dark Theme
- [![Dark Theme](assets/screenshots/dark.jpg)]
+ ![Dark Theme](assets/screenshots/dark.jpg)
 
 ## Security Features <a name="securityfeatures"></a>
 
@@ -48,11 +48,11 @@ PassForge is a Flutter-based mobile application designed to help users generate,
 
 - Clone the Repository:
 ```bash
-git clone https://github.com/your-username/your-repo.git
+git clone https://github.com/rishabpuranika/PassForge
 ```
 - Navigate to the Project Directory:
 ```bash
-cd your-repo
+cd PassForge
 ```
 - Install Dependencies: Ensure you have Flutter installed. Run:
 ```bash
