@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:math';
 import 'secure_credential_manager.dart';
+import 'package:local_auth/local_auth.dart';
+import 'package:local_auth/error_codes.dart' as auth_error;
 
 void main() {
   runApp(const MyApp());
@@ -162,6 +164,42 @@ class MyAppState extends ChangeNotifier {
   void toggleTheme() {
     _isDarkMode = !_isDarkMode;
     notifyListeners();
+  }
+   bool _isAuthenticationEnabled = true;
+  bool get isAuthenticationEnabled => _isAuthenticationEnabled;
+
+  void toggleAuthentication(bool value) {
+    _isAuthenticationEnabled = value;
+    notifyListeners();
+  }
+
+  Future<bool> authenticateUser() async {
+    if (!_isAuthenticationEnabled) return true;
+
+    final LocalAuthentication localAuth = LocalAuthentication();
+
+    try {
+      // Check for device authentication capabilities
+      bool canAuthenticate = await localAuth.canCheckBiometrics || await localAuth.isDeviceSupported();
+
+      if (!canAuthenticate) {
+        return false;
+      }
+
+      // Attempt authentication
+      final bool didAuthenticate = await localAuth.authenticate(
+        localizedReason: 'Please authenticate to access your passwords',
+        options: const AuthenticationOptions(
+          stickyAuth: true,
+          biometricOnly: false,
+        ),
+      );
+
+      return didAuthenticate;
+    } catch (e) {
+      print('Authentication error: $e');
+      return false;
+    }
   }
 }
 
@@ -424,6 +462,7 @@ class CredentialStoragePage extends StatefulWidget {
 
 class _CredentialStoragePageState extends State<CredentialStoragePage> {
   final Set<String> _revealedPasswords = {};
+  bool _isAuthenticating = false;
 
   @override
   void initState() {
@@ -433,7 +472,26 @@ class _CredentialStoragePageState extends State<CredentialStoragePage> {
     });
   }
 
-  void _togglePasswordVisibility(String serviceName) {
+  void _togglePasswordVisibility(String serviceName) async {
+    var appState = Provider.of<MyAppState>(context, listen: false);
+
+    // Check authentication if it's enabled
+    if (appState.isAuthenticationEnabled && !_isAuthenticating) {
+      setState(() {
+        _isAuthenticating = true;
+      });
+
+      bool authenticated = await appState.authenticateUser();
+
+      setState(() {
+        _isAuthenticating = false;
+      });
+
+      if (!authenticated) {
+        return;
+      }
+    }
+
     setState(() {
       if (_revealedPasswords.contains(serviceName)) {
         _revealedPasswords.remove(serviceName);
@@ -445,78 +503,110 @@ class _CredentialStoragePageState extends State<CredentialStoragePage> {
 
   @override
   Widget build(BuildContext context) {
-    var appState = context.watch<MyAppState>();
+    return AuthenticatedPage(
+      child: SafeArea(
+        child: Consumer<MyAppState>(
+          builder: (context, appState, child) {
+            if (appState.isLoading) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-    if (appState.isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (appState.storedCredentials.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.lock_open, size: 64, color: Colors.grey),
-            const SizedBox(height: 16),
-            Text(
-              'No credentials stored',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-          ],
-        ),
-      );
-    }
-
-    return SafeArea(
-      child: RefreshIndicator(
-        onRefresh: () => appState.loadStoredCredentials(),
-        child: ListView.builder(
-          itemCount: appState.storedCredentials.length,
-          itemBuilder: (context, index) {
-            final credential = appState.storedCredentials[index];
-            final serviceName = credential['serviceName'] ?? 'Unknown Service';
-
-            return Dismissible(
-              key: Key(serviceName),
-              direction: DismissDirection.endToStart,
-              background: Container(
-                color: Colors.red,
-                alignment: Alignment.centerRight,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: const Icon(Icons.delete, color: Colors.white),
-              ),
-              confirmDismiss: (direction) async {
-                return await showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Delete Credential'),
-                    content: Text('Are you sure you want to delete credentials for $serviceName?'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(false),
-                        child: const Text('Cancel'),
-                      ),
-                      ElevatedButton(
-                        onPressed: () => Navigator.of(context).pop(true),
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                        child: const Text('Delete'),
-                      ),
-                    ],
-                  ),
-                );
-              },
-              onDismissed: (direction) {
-                appState.deleteCredential(serviceName); // Call the delete method from MyAppState
-              },
-              child: Card(
-                child: ListTile(
-                  title: Text(serviceName),
-                  subtitle: Text(credential['username'] ?? ''),
+            if (appState.storedCredentials.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.lock_open, size: 64, color: Colors.grey),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No credentials stored',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ],
                 ),
+              );
+            }
+
+            return RefreshIndicator(
+              onRefresh: () => appState.loadStoredCredentials(),
+              child: ListView.builder(
+                itemCount: appState.storedCredentials.length,
+                itemBuilder: (context, index) {
+                  final credential = appState.storedCredentials[index];
+                  final serviceName = credential['serviceName'] ?? 'Unknown Service';
+                  final username = credential['username'] ?? '';
+                  final password = credential['password'] ?? '';
+                  final isPasswordRevealed = _revealedPasswords.contains(serviceName);
+
+                  return Dismissible(
+                    key: Key(serviceName),
+                    direction: DismissDirection.endToStart,
+                    background: Container(
+                      color: Colors.red,
+                      alignment: Alignment.centerRight,
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: const Icon(Icons.delete, color: Colors.white),
+                    ),
+                    confirmDismiss: (direction) async {
+                      return await showDialog(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('Delete Credential'),
+                          content: Text('Are you sure you want to delete credentials for $serviceName?'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(false),
+                              child: const Text('Cancel'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () => Navigator.of(context).pop(true),
+                              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                              child: const Text('Delete'),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                    onDismissed: (direction) {
+                      appState.deleteCredential(serviceName);
+                    },
+                    child: Card(
+                      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                      child: ListTile(
+                        title: Text(
+                          serviceName,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Username: $username'),
+                            if (isPasswordRevealed)
+                              Text(
+                                'Password: $password',
+                                style: const TextStyle(color: Colors.green),
+                              )
+                            else
+                              const Text(
+                                'Password: ●●●●●●●●',
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                          ],
+                        ),
+                        trailing: IconButton(
+                          icon: Icon(
+                            isPasswordRevealed ? Icons.visibility_off : Icons.visibility,
+                          ),
+                          onPressed: () => _togglePasswordVisibility(serviceName),
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
             );
           },
-        )
+        ),
       ),
     );
   }
@@ -526,69 +616,157 @@ class _CredentialStoragePageState extends State<CredentialStoragePage> {
 class HistoryPage extends StatelessWidget {
   const HistoryPage({super.key});
 
+  void _showSaveDialog(BuildContext context, String password) {
+    final serviceNameController = TextEditingController();
+    final usernameController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Save Unsaved Password'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: serviceNameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Service Name',
+                  ),
+                ),
+                TextField(
+                  controller: usernameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Username',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (serviceNameController.text.trim().isNotEmpty &&
+                    usernameController.text.trim().isNotEmpty) {
+                  var appState = Provider.of<MyAppState>(context, listen: false);
+                  appState.saveUnsavedPassword(
+                    password,
+                    serviceNameController.text.trim(),
+                    usernameController.text.trim(),
+                  );
+
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Password saved for ${serviceNameController.text}'),
+                    ),
+                  );
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    var appState = context.watch<MyAppState>();
-
-    if (appState.unsavedPasswords.isEmpty) {
-      return const Center(
-        child: Text('No unsaved passwords in history'),
-      );
-    }
-
-    return SafeArea(
-      child: ListView.builder(
-        itemCount: appState.unsavedPasswords.length,
-        itemBuilder: (context, index) {
-          final unsavedPassword = appState.unsavedPasswords[index];
-          final password = unsavedPassword['password'];
-          final timestamp = unsavedPassword['timestamp'] as DateTime;
-
-          return Dismissible(
-            key: Key(password),
-            direction: DismissDirection.endToStart,
-            background: Container(
-              color: Colors.red,
-              alignment: Alignment.centerRight,
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: const Icon(Icons.delete, color: Colors.white),
-            ),
-            confirmDismiss: (direction) async {
-              return await showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Delete Password'),
-                  content: Text('Are you sure you want to delete this password?'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(false),
-                      child: const Text('Cancel'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () => Navigator.of(context).pop(true),
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                      child: const Text('Delete'),
+    return AuthenticatedPage(
+      child: SafeArea(
+        child: Consumer<MyAppState>(
+          builder: (context, appState, child) {
+            if (appState.unsavedPasswords.isEmpty) {
+              return const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.history, size: 64, color: Colors.grey),
+                    SizedBox(height: 16),
+                    Text(
+                      'No unsaved passwords in history',
+                      style: TextStyle(color: Colors.grey),
                     ),
                   ],
                 ),
               );
-            },
-            onDismissed: (direction) {
-              appState.deleteUnsavedPassword(password); // Implement this in MyAppState
-            },
-            child: ListTile(
-              title: Text(password),
-              subtitle: Text('Generated: ${timestamp.toLocal()}'),
-              trailing: IconButton(
-                icon: const Icon(Icons.save),
-                onPressed: () {
-                  // Trigger save credential dialog
-                  PasswordGeneratorPage()._showSaveCredentialDialog(context, password);
-                },
-              ),
-            ),
-          );
-        },
+            }
+
+            return ListView.builder(
+              itemCount: appState.unsavedPasswords.length,
+              itemBuilder: (context, index) {
+                final unsavedPassword = appState.unsavedPasswords[index];
+                final password = unsavedPassword['password'];
+                final timestamp = unsavedPassword['timestamp'] as DateTime;
+
+                return Dismissible(
+                  key: Key(password),
+                  direction: DismissDirection.endToStart,
+                  background: Container(
+                    color: Colors.red,
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: const Icon(Icons.delete, color: Colors.white),
+                  ),
+                  confirmDismiss: (direction) async {
+                    return await showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Delete Password'),
+                        content: Text('Are you sure you want to delete this password?'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(false),
+                            child: const Text('Cancel'),
+                          ),
+                          ElevatedButton(
+                            onPressed: () => Navigator.of(context).pop(true),
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                            child: const Text('Delete'),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                  onDismissed: (direction) {
+                    appState.deleteUnsavedPassword(password);
+                  },
+                  child: ListTile(
+                    title: Text(
+                      password,
+                      style: const TextStyle(fontFamily: 'monospace'),
+                    ),
+                    subtitle: Text(
+                      'Generated: ${timestamp.toLocal()}',
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.save, color: Colors.orange),
+                          onPressed: () => _showSaveDialog(context, password),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.copy, color: Colors.blue),
+                          onPressed: () {
+                            // TODO: Implement copy to clipboard functionality
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }
@@ -691,7 +869,7 @@ class SettingsPage extends StatelessWidget {
             ),
             const Spacer(),
             const Text(
-              'PassForge v1.0',
+              'PassForge v1.1',
               style: TextStyle(
                 fontFamily: 'BungeeSpice',
                 color: Colors.grey,
@@ -702,5 +880,39 @@ class SettingsPage extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class AuthenticatedPage extends StatefulWidget {
+  final Widget child;
+
+  const AuthenticatedPage({super.key, required this.child});
+
+  @override
+  _AuthenticatedPageState createState() => _AuthenticatedPageState();
+}
+
+class _AuthenticatedPageState extends State<AuthenticatedPage> {
+  @override
+  void initState() {
+    super.initState();
+    _checkAuthentication();
+  }
+
+  Future<void> _checkAuthentication() async {
+    var appState = Provider.of<MyAppState>(context, listen: false);
+    bool authenticated = true;
+    if (appState.isAuthenticationEnabled) {
+      bool authenticated = await appState.authenticateUser();
+      if (!authenticated) {
+        // Navigate back if authentication fails
+        Navigator.of(context).pop();
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.child;
   }
 }

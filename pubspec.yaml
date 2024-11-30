@@ -29,12 +29,12 @@ dependencies:
   provider: ^6.0.0
   flutter_secure_storage: ^9.2.2
   encrypt: ^5.0.3
-
+  local_auth: ^2.3.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
-
+  flutter_launcher_icons: ^0.14.1
 flutter:
   uses-material-design: true
   assets:
@@ -43,3 +43,10 @@ flutter:
     - family: BungeeSpice
       fonts:
         - asset: assets/fonts/BungeeSpice-Regular.ttf
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icons/logo.png"
+  android_icon_name: "ic_launcher"
+  adaptive_icon_background: "#ffffff"  # Background color
+  adaptive_icon_foreground: "assets/icons/logo.png"
