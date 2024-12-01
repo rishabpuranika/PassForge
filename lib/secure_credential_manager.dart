@@ -139,7 +139,11 @@ class SecureCredentialManager {
   }
 
   // Delete a specific credential
-  Future<void> deleteCredential(String serviceName) async {
+  Future<void> deleteCredential({
+    required String serviceName, 
+    required String username, 
+    required String timestamp
+  }) async {
     try {
       // Retrieve existing credentials
       String? existingCredentialsStr = 
@@ -153,13 +157,15 @@ class SecureCredentialManager {
       // Temporary list to store credentials to keep
       final updatedCredentials = <dynamic>[];
       
-      // Iterate and decrypt to check service name
+      // Iterate and decrypt to check service name, username, and timestamp
       for (var encryptedCred in credentials) {
         final decryptedStr = await _decrypt(encryptedCred);
         final decrypted = json.decode(decryptedStr);
         
-        // Keep credentials that don't match the service name
-        if (decrypted['serviceName'] != serviceName) {
+        // Keep credentials that don't match all three parameters
+        if (!(decrypted['serviceName'] == serviceName && 
+              decrypted['username'] == username && 
+              decrypted['timestamp'] == timestamp)) {
           updatedCredentials.add(encryptedCred);
         }
       }
@@ -177,7 +183,6 @@ class SecureCredentialManager {
       print('Error deleting credential: $e');
     }
   }
-
   // Clear all stored credentials
   Future<void> clearAllCredentials() async {
     await _secureStorage.delete(key: _credentialsStorageKey);

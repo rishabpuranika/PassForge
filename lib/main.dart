@@ -4,6 +4,11 @@ import 'dart:math';
 import 'secure_credential_manager.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:local_auth/error_codes.dart' as auth_error;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+import 'package:flutter/services.dart';
+import 'dart:io';
+
 
 void main() {
   runApp(const MyApp());
@@ -36,8 +41,10 @@ class MyApp extends StatelessWidget {
                 brightness: Brightness.dark,
               ),
             ),
-            themeMode: appState.isDarkMode ? ThemeMode.dark : ThemeMode.light,
-            home: const MyHomePage(),
+            themeMode: appState.isPreferencesReady 
+              ? (appState.isDarkMode ? ThemeMode.dark : ThemeMode.light)
+              : ThemeMode.light, // Default to light theme during initialization
+            home: const MyHomePage(), //to set the home page
             debugShowCheckedModeBanner: false,
           );
         },
@@ -48,7 +55,7 @@ class MyApp extends StatelessWidget {
 
 class MyAppState extends ChangeNotifier {
   String _password = '';
-  int _length = 12;
+  int _length = 12; // Default password length
   List<Map<String, String>> _storedCredentials = [];
   bool _isLoading = false;
 
@@ -58,10 +65,23 @@ class MyAppState extends ChangeNotifier {
   String get password => _password;
   int get length => _length;
   List<Map<String, String>> get storedCredentials => _storedCredentials;
-  bool get isLoading => _isLoading;
+  bool get isLoading => _isLoading; 
+
+  SharedPreferences? _prefs;
+  bool _isDarkMode = false;
+  bool _isInitialized = false;
+
+  //initialize defaults for the app like stored passwords and preferences
+  MyAppState() {
+    _initializePreferences().then((_) {
+    _loadUnsavedPasswordsFromPrefs();
+    loadStoredCredentials();
+    });
+  }
 
   final SecureCredentialManager _credentialManager = SecureCredentialManager();
-
+  
+  // Add a method to store credentials securely
   Future<void> addCredential({
     required String serviceName, 
     required String username, 
@@ -69,8 +89,9 @@ class MyAppState extends ChangeNotifier {
   }) async {
     try {
       _isLoading = true;
-      notifyListeners();
-
+      if (password=="") {
+        throw Exception('Password cannot be empty');
+      }
       await _credentialManager.storeCredential(
         serviceName: serviceName, 
         username: username, 
@@ -78,13 +99,14 @@ class MyAppState extends ChangeNotifier {
       );
       await loadStoredCredentials();
     } catch (e) {
+      // ignore: avoid_print
       print('Error adding credential: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
-
+  // Add a method to load stored credentials
   Future<void> loadStoredCredentials() async {
     try {
       _isLoading = true;
@@ -94,18 +116,22 @@ class MyAppState extends ChangeNotifier {
     } catch (e) {
       print('Error loading credentials: $e');
       _storedCredentials = [];
-    } finally {
+      } finally {
       _isLoading = false;
       notifyListeners();
-    }
+      }
   }
-
-  Future<void> deleteCredential(String serviceName) async {
+  // Add a method to delete stored credentials
+  Future<void> deleteCredential(Map<String, String> credential) async {
     try {
       _isLoading = true;
       notifyListeners();
 
-      await _credentialManager.deleteCredential(serviceName);
+      await _credentialManager.deleteCredential(
+        serviceName: credential['serviceName'] ?? '',
+        username: credential['username'] ?? '',
+        timestamp: credential['timestamp'] ?? ''
+      );
       await loadStoredCredentials();
     } catch (e) {
       print('Error deleting credential: $e');
@@ -115,11 +141,14 @@ class MyAppState extends ChangeNotifier {
     }
   }
 
+  // Add a method to set the password length
   void setLength(int newLength) {
     _length = newLength;
-    generateRandomPassword();
+    //generateRandomPassword();
+    _password='';
+    notifyListeners();
   }
-
+  // Add a method to generate a random password
   void generateRandomPassword() {
     const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#%^&*()";
     Random random = Random();
@@ -128,24 +157,27 @@ class MyAppState extends ChangeNotifier {
     );
     notifyListeners();
   }
+  // Add a method to add unsaved passwords
   void addUnsavedPassword(String password) {
     final timestamp = DateTime.now();
     _unsavedPasswords.add({'password': password, 'timestamp': timestamp});
+    _saveUnsavedPasswordsToPrefs(); // Add this line
     notifyListeners();
-
     // Remove expired passwords automatically after 10 minutes
-    Future.delayed(const Duration(minutes: 10), () {
-      _unsavedPasswords.removeWhere((item) =>
-          DateTime.now().difference(item['timestamp']).inMinutes >= 10);
-      notifyListeners();
+     Future.delayed(const Duration(minutes: 10), () {
+    _unsavedPasswords.removeWhere((item) =>
+        DateTime.now().difference(item['timestamp']).inMinutes >= 10);
+    _saveUnsavedPasswordsToPrefs(); // Add this line
+    notifyListeners();
     });
   }
-
+  // Add a method to remove unsaved passwords
   void removeUnsavedPassword(String password) {
-    _unsavedPasswords.removeWhere((item) => item['password'] == password);
-    notifyListeners();
+  _unsavedPasswords.removeWhere((item) => item['password'] == password);
+  _saveUnsavedPasswordsToPrefs(); // Add this line
+  notifyListeners();
   }
-
+  // Add a method to save unsaved passwords
   void saveUnsavedPassword(String password, String serviceName, String username) {
     removeUnsavedPassword(password);
     addCredential(
@@ -154,53 +186,149 @@ class MyAppState extends ChangeNotifier {
       password: password,
     );
   }
+  // Add a method to delete unsaved passwords
   void deleteUnsavedPassword(String password) {
-    _unsavedPasswords.removeWhere((item) => item['password'] == password);
+  _unsavedPasswords.removeWhere((item) => item['password'] == password);
+  _saveUnsavedPasswordsToPrefs(); // Add this line
+  notifyListeners();
+  }
+  // Add a method to initialize preferences for the theme like dark or light mode
+  Future<void> _initializePreferences() async {
+    _prefs = await SharedPreferences.getInstance();
+    _isDarkMode = _prefs?.getBool('isDarkMode') ?? false;
+    _isInitialized = true;
     notifyListeners();
   }
-   bool _isDarkMode = false;
-  bool get isDarkMode => _isDarkMode;
+  // Add a method to save unsaved passwords to persistent storage
+  Future<void> _saveUnsavedPasswordsToPrefs() async {
+  if (_prefs != null) {
+    List<String> passwordsJson = _unsavedPasswords.map((item) => 
+      jsonEncode({
+        'password': item['password'],
+        'timestamp': item['timestamp'].toIso8601String()
+      })
+    ).toList();
+    await _prefs!.setStringList('unsavedPasswords', passwordsJson);
+    }
+  }
 
-  void toggleTheme() {
-    _isDarkMode = !_isDarkMode;
-    notifyListeners();
+// Add a method to load unsaved passwords from persistent storage
+  Future<void> _loadUnsavedPasswordsFromPrefs() async {
+    if (_prefs != null) {
+      List<String>? passwordsJson = _prefs!.getStringList('unsavedPasswords');
+      if (passwordsJson != null) {
+        _unsavedPasswords = passwordsJson.map((json) {
+          var item = jsonDecode(json);
+          return {
+            'password': item['password'],
+            'timestamp': DateTime.parse(item['timestamp'])
+          };
+        }).toList();
+      }
+    }
   }
-   bool _isAuthenticationEnabled = true;
+  // Add a method to toggle the theme
+  void toggleTheme() {
+    // Ensure _prefs is not null before using it
+    if (_prefs != null) {
+      _isDarkMode = !_isDarkMode;
+      _prefs!.setBool('isDarkMode', _isDarkMode);
+      notifyListeners();
+    }
+  }
+
+  // Modify the getter to handle uninitialized state
+  bool get isDarkMode {
+    return _isDarkMode;
+  }
+
+  // Add a method to check if preferences are ready
+  bool get isPreferencesReady => _isInitialized;
+  // Add a method to check if authentication is enabled
+  bool _isAuthenticationEnabled = true; // Default to true)(as i have removed the authentication part for security reasons)
   bool get isAuthenticationEnabled => _isAuthenticationEnabled;
 
   void toggleAuthentication(bool value) {
     _isAuthenticationEnabled = value;
     notifyListeners();
   }
+  // Add a method to authenticate the user
+  Future<bool> authenticateUser(BuildContext context) async {
+  if (!_isAuthenticationEnabled) return true;
 
-  Future<bool> authenticateUser() async {
-    if (!_isAuthenticationEnabled) return true;
+  final LocalAuthentication localAuth = LocalAuthentication();
 
-    final LocalAuthentication localAuth = LocalAuthentication();
+  try {
+    // Check for device authentication capabilities
+    bool canAuthenticate = await localAuth.canCheckBiometrics || await localAuth.isDeviceSupported();
 
-    try {
-      // Check for device authentication capabilities
-      bool canAuthenticate = await localAuth.canCheckBiometrics || await localAuth.isDeviceSupported();
-
-      if (!canAuthenticate) {
-        return false;
-      }
-
-      // Attempt authentication
-      final bool didAuthenticate = await localAuth.authenticate(
-        localizedReason: 'Please authenticate to access your passwords',
-        options: const AuthenticationOptions(
-          stickyAuth: true,
-          biometricOnly: false,
-        ),
-      );
-
-      return didAuthenticate;
-    } catch (e) {
-      print('Authentication error: $e');
+    if (!canAuthenticate) {
+      // Show a dialog explaining authentication is not possible
       return false;
     }
+
+    // Attempt authentication
+    final bool didAuthenticate = await localAuth.authenticate(
+      localizedReason: 'Please authenticate to access your passwords',
+      options: const AuthenticationOptions(
+        stickyAuth: true,
+        biometricOnly: false,
+      ),
+    );
+
+    return didAuthenticate;
+  } on PlatformException catch (e) {
+    // Handle specific authentication errors
+    switch (e.code) {
+      case auth_error.notEnrolled:
+        // Show dialog: No biometrics enrolled
+        _showAuthenticationDialog(
+          context, 
+          'No Biometrics',
+          'Please set up biometrics in your device settings.'
+        );
+        break;
+      case auth_error.passcodeNotSet:
+        // Show dialog: No passcode set
+        _showAuthenticationDialog(
+          context, 
+          'Passcode Required',
+          'Please set up a device passcode.'
+        );
+        break;
+      case auth_error.permanentlyLockedOut:
+        // Serious lockout - suggest device settings
+        _showAuthenticationDialog(
+          context, 
+          'Authentication Locked',
+          'Too many failed attempts. Reset in device settings.'
+        );
+        break;
+      default:
+        print('Unhandled auth error: ${e.code}');
+    }
+    return false;
+  } catch (e) {
+    print('Unexpected authentication error: $e');
+    return false;
   }
+}
+}
+  // Add a method to show an authentication dialog
+  void _showAuthenticationDialog(BuildContext context, String title, String message) {
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(title),
+      content: Text(message),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('OK'),
+        ),
+      ],
+    ),
+  );
 }
 
 class MyHomePage extends StatefulWidget {
@@ -218,7 +346,7 @@ class _MyHomePageState extends State<MyHomePage> {
     return LayoutBuilder(
       builder: (context, constraints) {
         return Scaffold(
-          appBar: selectedIndex != 3 // Hide AppBar in Settings page
+          appBar: selectedIndex != 3 // Hide AppBar in Settings page and in this case the bar wont be displayed in 3rd page which is settings
               ? AppBar(
                   title: Row(
                     children: [
@@ -249,6 +377,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 selectedIndex = value;
               });
             },
+            // Add more items as needed for the navigation bar present in the bottom this contains icons
             items: const [
               BottomNavigationBarItem(
                 icon: Icon(Icons.key_rounded),
@@ -272,7 +401,7 @@ class _MyHomePageState extends State<MyHomePage> {
       },
     );
   }
-
+  // Add a method to build the page based on the selected index connecting to the above icons
   Widget _buildPage(int index) {
     switch (index) {
       case 0:
@@ -292,7 +421,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
 class PasswordGeneratorPage extends StatelessWidget {
   const PasswordGeneratorPage({super.key});
-
+  // Add a method to show a dialog to save the credential
   void _showSaveCredentialDialog(BuildContext context, String password) {
     final serviceNameController = TextEditingController();
     final usernameController = TextEditingController();
@@ -310,7 +439,7 @@ class PasswordGeneratorPage extends StatelessWidget {
                   controller: serviceNameController,
                   decoration: const InputDecoration(
                     labelText: 'Service Name',
-                    hintText: 'e.g., Google, Facebook',
+                    hintText: 'e.g., Google, Meta, etc.',
                   ),
                 ),
                 TextField(
@@ -341,14 +470,14 @@ class PasswordGeneratorPage extends StatelessWidget {
                   );
 
                   Navigator.of(context).pop();
-
+                  // Show a snackbar(notification message) to confirm the credential was saved
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('Credential saved for ${serviceNameController.text}'),
                       duration: const Duration(seconds: 2),
                     ),
                   );
-                } else {
+                  } else {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Please fill in all fields'),
@@ -364,6 +493,7 @@ class PasswordGeneratorPage extends StatelessWidget {
       },
     );
   }
+  // Add a method to generate a password
   void _generatePassword(BuildContext context) {
     var appState = Provider.of<MyAppState>(context, listen: false);
     appState.generateRandomPassword();
@@ -461,18 +591,20 @@ class CredentialStoragePage extends StatefulWidget {
 }
 
 class _CredentialStoragePageState extends State<CredentialStoragePage> {
-  final Set<String> _revealedPasswords = {};
+  final Set<String> _revealedCredentials = {};
   bool _isAuthenticating = false;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<MyAppState>(context, listen: false).loadStoredCredentials();
-    });
+  // Add a method to copy credentials to the clipboard
+  void _copyToClipboard(String text, String serviceName) {
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$serviceName credential copied to clipboard'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
-
-  void _togglePasswordVisibility(String serviceName) async {
+  // Add a method to toggle credential visibility
+  void _toggleCredentialVisibility(String serviceName) async {
     var appState = Provider.of<MyAppState>(context, listen: false);
 
     // Check authentication if it's enabled
@@ -481,22 +613,25 @@ class _CredentialStoragePageState extends State<CredentialStoragePage> {
         _isAuthenticating = true;
       });
 
-      bool authenticated = await appState.authenticateUser();
+      bool authenticated = await appState.authenticateUser(context);
 
       setState(() {
         _isAuthenticating = false;
       });
 
       if (!authenticated) {
-        return;
+        if (Platform.isAndroid || Platform.isIOS) {
+          // For mobile platforms
+          exit(0);
+        }
       }
     }
 
     setState(() {
-      if (_revealedPasswords.contains(serviceName)) {
-        _revealedPasswords.remove(serviceName);
+      if (_revealedCredentials.contains(serviceName)) {
+        _revealedCredentials.remove(serviceName);
       } else {
-        _revealedPasswords.add(serviceName);
+        _revealedCredentials.add(serviceName);
       }
     });
   }
@@ -536,10 +671,10 @@ class _CredentialStoragePageState extends State<CredentialStoragePage> {
                   final serviceName = credential['serviceName'] ?? 'Unknown Service';
                   final username = credential['username'] ?? '';
                   final password = credential['password'] ?? '';
-                  final isPasswordRevealed = _revealedPasswords.contains(serviceName);
+                  final isCredentialsRevealed = _revealedCredentials.contains(serviceName);
 
                   return Dismissible(
-                    key: Key(serviceName),
+                    key: Key('${credential['serviceName']}_${credential['username']}_${credential['timestamp']}'),
                     direction: DismissDirection.endToStart,
                     background: Container(
                       color: Colors.red,
@@ -568,7 +703,7 @@ class _CredentialStoragePageState extends State<CredentialStoragePage> {
                       );
                     },
                     onDismissed: (direction) {
-                      appState.deleteCredential(serviceName);
+                      appState.deleteCredential(credential);
                     },
                     child: Card(
                       margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
@@ -580,24 +715,46 @@ class _CredentialStoragePageState extends State<CredentialStoragePage> {
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Username: $username'),
-                            if (isPasswordRevealed)
-                              Text(
-                                'Password: $password',
-                                style: const TextStyle(color: Colors.green),
-                              )
-                            else
-                              const Text(
-                                'Password: ●●●●●●●●',
-                                style: TextStyle(color: Colors.grey),
+                            Text(
+                              'Username: ${isCredentialsRevealed ? username : '●●●●●●●●'}',
+                              style: TextStyle(
+                                color: isCredentialsRevealed ? const Color.fromARGB(255, 30, 153, 11) : Colors.grey,
                               ),
+                            ),
+                            Text(
+                              'Password: ${isCredentialsRevealed ? password : '●●●●●●●●'}',
+                              style: TextStyle(
+                                color: isCredentialsRevealed ? const Color.fromARGB(255, 252, 17, 0) : Colors.grey,
+                              ),
+                            ),
                           ],
                         ),
-                        trailing: IconButton(
-                          icon: Icon(
-                            isPasswordRevealed ? Icons.visibility_off : Icons.visibility,
-                          ),
-                          onPressed: () => _togglePasswordVisibility(serviceName),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: Icon(
+                                isCredentialsRevealed 
+                                  ? Icons.visibility 
+                                  : Icons.visibility_off,
+                              ),
+                              onPressed: () => _toggleCredentialVisibility(serviceName),
+                            ),
+                            if (isCredentialsRevealed) ...[
+                              IconButton(
+                                icon: const Icon(Icons.copy, color: Color.fromARGB(255, 30, 153, 11)),
+                                onPressed: () {
+                                  _copyToClipboard(username, '$serviceName username');
+                                },
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.copy, color: Color.fromARGB(255, 252, 17, 0)),
+                                onPressed: () {
+                                  _copyToClipboard(password, '$serviceName password');
+                                },
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                     ),
@@ -612,10 +769,16 @@ class _CredentialStoragePageState extends State<CredentialStoragePage> {
   }
 }
 
-// Placeholder pages for History and Settings
-class HistoryPage extends StatelessWidget {
+class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
 
+  @override
+  _HistoryPageState createState() => _HistoryPageState();
+}
+
+class _HistoryPageState extends State<HistoryPage> {
+  final Set<String> _revealedPasswords = {};
+  // Add a method to show a dialog to save unsaved passwords
   void _showSaveDialog(BuildContext context, String password) {
     final serviceNameController = TextEditingController();
     final usernameController = TextEditingController();
@@ -675,6 +838,16 @@ class HistoryPage extends StatelessWidget {
       },
     );
   }
+  // Add a method to toggle password visibility
+  void _togglePasswordVisibility(String password) {
+    setState(() {
+      if (_revealedPasswords.contains(password)) {
+        _revealedPasswords.remove(password);
+      } else {
+        _revealedPasswords.add(password);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -704,6 +877,7 @@ class HistoryPage extends StatelessWidget {
                 final unsavedPassword = appState.unsavedPasswords[index];
                 final password = unsavedPassword['password'];
                 final timestamp = unsavedPassword['timestamp'] as DateTime;
+                final isPasswordRevealed = _revealedPasswords.contains(password);
 
                 return Dismissible(
                   key: Key(password),
@@ -739,7 +913,9 @@ class HistoryPage extends StatelessWidget {
                   },
                   child: ListTile(
                     title: Text(
-                      password,
+                      isPasswordRevealed 
+                        ? password 
+                        : '*' * password.length, // Show stars or actual password
                       style: const TextStyle(fontFamily: 'monospace'),
                     ),
                     subtitle: Text(
@@ -749,6 +925,14 @@ class HistoryPage extends StatelessWidget {
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        IconButton(
+                          icon: Icon(
+                            isPasswordRevealed 
+                              ? Icons.visibility 
+                              : Icons.visibility_off,
+                          ),
+                          onPressed: () => _togglePasswordVisibility(password),
+                        ),
                         IconButton(
                           icon: const Icon(Icons.save, color: Colors.orange),
                           onPressed: () => _showSaveDialog(context, password),
@@ -771,7 +955,6 @@ class HistoryPage extends StatelessWidget {
     );
   }
 }
-
 
 void _showSaveDialog(BuildContext context, String password) {
   final serviceNameController = TextEditingController();
@@ -858,9 +1041,9 @@ class SettingsPage extends StatelessWidget {
             Card(
               child: ListTile(
                 title: const Text('Dark Mode'),
-                subtitle: Text(appState.isDarkMode ? 'Enabled' : 'Disabled'),
+                subtitle: Text(appState._isDarkMode ? 'Enabled' : 'Disabled'),
                 trailing: Switch(
-                  value: appState.isDarkMode,
+                  value: appState._isDarkMode,
                   onChanged: (bool value) {
                     appState.toggleTheme();
                   },
@@ -869,7 +1052,7 @@ class SettingsPage extends StatelessWidget {
             ),
             const Spacer(),
             const Text(
-              'PassForge v1.1',
+              'PassForge v1.2',
               style: TextStyle(
                 fontFamily: 'BungeeSpice',
                 color: Colors.grey,
@@ -903,7 +1086,7 @@ class _AuthenticatedPageState extends State<AuthenticatedPage> {
     var appState = Provider.of<MyAppState>(context, listen: false);
     bool authenticated = true;
     if (appState.isAuthenticationEnabled) {
-      bool authenticated = await appState.authenticateUser();
+      authenticated = await appState.authenticateUser(context);
       if (!authenticated) {
         // Navigate back if authentication fails
         Navigator.of(context).pop();
